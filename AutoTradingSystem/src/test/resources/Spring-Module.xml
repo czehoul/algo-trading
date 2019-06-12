@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:task="http://www.springframework.org/schema/task"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:aop="http://www.springframework.org/schema/aop"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
+                            http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.0.xsd
+                            http://www.springframework.org/schema/task http://www.springframework.org/schema/task/spring-task-4.0.xsd
+                            http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.0.xsd
+                            http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-4.0.xsd">
+
+	 
+	<context:component-scan base-package="com.yee.trading" />
+	<tx:annotation-driven/>
+	
+    
+    <bean id="springContext" class="com.yee.trading.auto.util.SpringContext" />
+    
+	<bean
+		class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+		<property name="locations">
+			<list>
+				<value>classpath:dataUpdate.properties</value>
+				<value>classpath:broker.properties</value>
+				<value>classpath:database.properties</value>
+				<value>classpath:analysis.properties</value>
+				<value>classpath:notification.properties</value>
+			</list>
+		</property>
+	</bean>
+
+	<bean id="httpConnectionFactory" class="com.yee.trading.auto.connection.HTTPConnectionFactory"
+		destroy-method="destroy">
+		<constructor-arg type="java.lang.String">
+			<value>${broker.host}</value>
+		</constructor-arg>
+		<constructor-arg type="int">
+			<value>${broker.port}</value>
+		</constructor-arg>
+	</bean>
+	<task:scheduled-tasks scheduler="autoTradingScheduler">
+		<task:scheduled ref="bizFunDataUpdater" method="updateData"
+			 cron="${data.update.cron}"/>
+		<task:scheduled ref="klsePortfolioManager" method="updatePortfolioByOrderStatus"
+			 cron="${portfolio.update.cron}"/>
+		<task:scheduled ref="appManager" method="shutDown"
+			 cron="${app.shutdown.cron}"/>
+		<task:scheduled ref="notificationSender" method="sendMessage"
+			 fixed-rate="3000"/>
+		<!-- <task:scheduled ref="genericOrderStatusManager" method="checkOrderStatus"
+			 fixed-delay="${orderstatus.check.delay}"/> -->
+	</task:scheduled-tasks>
+	
+	<bean id="iRichStrategyBestTestRunner"
+		class="com.yee.trading.auto.strategy.GenericAmibrokerStrategyRunner">
+		<property name="analysisFilePath" value="${analysis.file}" />
+		<property name="outFilePath" value="${analysis.out.file}" />
+		<property name="strategyId" value="1" />
+		<property name="eventProcessor" ref="eventProcessor" />
+		<property name="strategyDao" ref="strategyDaoImpl" />
+		<property name="portfolioDao" ref="portfolioDaoImpl" />
+		<property name="brokerInterfaceManager" ref="hLeBrokingInterfaceManager" />
+		<property name="tradingDayChecker" ref="tradingDayChecker" />
+	</bean>
+	
+	<bean id="iRichStrategyExplorationRunner"
+		class="com.yee.trading.auto.strategy.GenericStrategyExplorationRunner">
+		<property name="analysisRunFilePath" value="${irich.analysis.run.file}" />
+		<property name="analysisFilePath" value="${irich.analysis.file}" />
+		<property name="outFilePath" value="${irich.analysis.out.file}" />
+		<property name="strategyId" value="1" />
+		<property name="eventProcessor" ref="eventProcessor" />
+		<property name="strategyDao" ref="strategyDaoImpl" />
+		<property name="portfolioDao" ref="portfolioDaoImpl" />
+		<property name="brokerInterfaceManager" ref="hLeBrokingInterfaceManager" />
+		<property name="tradingDayChecker" ref="tradingDayChecker" />
+		<property name="fundaFilter" ref="basicFundaFilter" />
+	</bean>
+	
+	<bean id="intradayOpenStrategyRunner"
+		class="com.yee.trading.auto.strategy.IntradayOpenStrategyRunner">
+		<property name="analysisRunFilePath" value="${intraday.analysis.run.file}" />
+		<property name="analysisFilePath" value="${intraday.analysis.file}" />
+		<property name="outFilePath" value="${intraday.analysis.out.file}" />
+		<property name="strategyId" value="2" />
+		<property name="eventProcessor" ref="eventProcessor" />
+		<property name="strategyDao" ref="strategyDaoImpl" />
+		<property name="intradayOpenStrategyHandler" ref="intradayOpenStrategyHandler" />
+		<property name="brokerInterfaceManager" ref="hLeBrokingInterfaceManager" />
+		<property name="tradingDayChecker" ref="tradingDayChecker" />
+		<property name="indexDataRetriever" ref="yahooIndexDataRetriever" />
+	</bean>
+	
+	<bean id="eventProcessor"
+		class="com.yee.trading.auto.event.EventProcessor">
+		<property name="strategyRunners">
+			<list>
+				<ref bean="iRichStrategyExplorationRunner"/>
+				<ref bean="intradayOpenStrategyRunner"/>
+			</list>
+		</property>
+		<property name="taskExecutor" ref="autoTradingTaskExecutor" />
+		<property name="springContext" ref="springContext" />	
+		<property name="orderStatusListener" ref="portfolioUpdateOrderStatusListener" />	
+	</bean>
+	
+	<task:scheduler id="autoTradingScheduler" pool-size="20" />
+	<task:annotation-driven executor="autoTradingTaskExecutor"/>
+	<task:executor id="autoTradingTaskExecutor" pool-size="20"/>
+
+	<bean id="metastockDataUpdater"
+		class="com.yee.trading.auto.marketdata.MetastockDBUpdater">
+		<property name="sourceToDestinationMap">
+			<map key-type="java.lang.String" value-type="java.lang.String">
+	            <entry key="futures.txt" value="Futures" />
+	            <entry key="stocks.txt" value="Stocks" />
+	            <entry key="warrants.txt" value="Warrants" />
+	            <entry key="worldindices.txt" value="Worldindices" />	            
+	        </map>
+		</property>
+		<property name="dataSourceLocation" value="${data.source.location}" />
+		<property name="dataDestinationLocation" value="${data.destination.location}" />
+		<property name="addSymbolSupport" value="false" />
+		<property name="eventProcessor" ref="eventProcessor" />
+	</bean>
+	
+	<bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource"
+		destroy-method="close">
+		<property name="driverClassName" value="oracle.jdbc.driver.OracleDriver" />
+		<property name="url" value="jdbc:oracle:thin:@localhost:1521:XE" />
+		<property name="username" value="${db.user}" />
+		<property name="password" value="${db.password}" />
+		<property name="initialSize" value="10" />
+        <property name="maxActive" value="5" />
+        <property name="maxWait" value="5000" />
+	</bean>
+
+
+	<!-- Hibernate 4 SessionFactory Bean definition -->
+	<bean id="entityManagerFactory" 
+			class="org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean">
+		<property name="packagesToScan">
+         <array>
+              <value>com.yee.trading.auto.portfolio</value>
+              <value>com.yee.trading.auto.strategy</value>
+              <value>com.yee.trading.auto.order</value>
+              <value>com.yee.trading.auto.stockinfo</value>
+              <value>com.yee.trading.auto.report</value>              
+         </array>
+     </property>      
+     <property name="dataSource" ref="dataSource" />
+		<property name="jpaVendorAdapter">
+			<bean class="org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter">				
+				<property name="showSql" value="true" />
+			</bean>
+		</property>
+	</bean>
+
+   <!-- Transactions -->
+	<bean id="transactionManager" class="org.springframework.orm.jpa.JpaTransactionManager">
+		<property name="entityManagerFactory" ref="entityManagerFactory" />
+	</bean>
+	<!-- enable the configuration of transactional behavior based on annotations -->
+	<tx:annotation-driven transaction-manager="transactionManager" />
+<!-- 
+	<bean id="portfolioDAO" class="com.yee.trading.auto.dao.PortfolioDAOImpl">
+		<property name="sessionFactory" ref="hibernate4AnnotatedSessionFactory" />
+	</bean>
+	
+	<bean id="strategyDAO" class="com.yee.trading.auto.dao.StrategyDAOImpl">
+		<property name="sessionFactory" ref="hibernate4AnnotatedSessionFactory" />
+	</bean>
+ -->
+</beans>
