@@ -9,5 +9,6 @@ This is the automated trading management application (aka trading bot) implement
 - Sending email notification about the order status
 - Generate end of day report 
 - Manage stock portfolio
+
 Note: The codes which interact with broker have been removed due to privacy issue and the trading APIs are not officially supported by the broker.  
 
