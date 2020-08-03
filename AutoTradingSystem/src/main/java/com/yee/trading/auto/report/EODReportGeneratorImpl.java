@@ -73,9 +73,9 @@ public class EODReportGeneratorImpl implements EODReportGenerator {
 	private String smtpServer;
 	@Value("${smtp.server.port:587}")
 	private int smtpServerPort;
-	@Value("${smtp.user:czehoul}")
+	@Value("${smtp.user}")
 	private String smtpUser;
-	@Value("${smtp.password:Ych55191}")
+	@Value("${smtp.password}")
 	private String smtpPassword;
 	@Value("${recipients.report}")
 	private String recipients;
