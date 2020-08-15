@@ -27,7 +27,7 @@ public class EmailNotificationSender implements NotificationSender {
 	private int smtpServerPort;
 	@Value("${smtp.user:czehoul}")
 	private String smtpUser;
-	@Value("${smtp.password:Ych55191}")
+	@Value("${smtp.password:xxxxxxx}")
 	private String smtpPassword;
 	@Value("${recipients}")
 	private String recipients;
